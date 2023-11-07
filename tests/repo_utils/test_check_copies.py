@@ -228,7 +228,7 @@ def replace_in_file(filename, old, new):
 
     content = content.replace(old, new)
 
-    with open(filename, "w", encoding="utf-8") as f:
+    with open(filename, "w", encoding="utf-8", newline="\n") as f:
         f.write(content)
 
 
