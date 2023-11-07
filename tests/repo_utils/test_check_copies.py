@@ -156,7 +156,6 @@ class BertDummyModel:
     def existing_diff_not_ignored(self, c):
         return 8
 
-    # ignore copied
     def existing_diff_to_be_ignored(self, c):
         return 9
 """
