@@ -364,11 +364,11 @@ def find_code_in_transformers(
 
 
 def replace_code(code: str, replace_pattern: str) -> str:
-    """Replace `code` by a list of patterns whose elements have the form `with X1->X2,Y1->Y2,Z1->Z2`.
+    """Replace `code` by a pattern of the form `with X1->X2,Y1->Y2,Z1->Z2`.
 
     Args:
         code (`str`): The code to be modified.
-        replace_pattern (`str`): The patterns used to modify `code`.
+        replace_pattern (`str`): The pattern used to modify `code`.
 
     Returns:
         `str`: The modified code.
@@ -389,11 +389,12 @@ def replace_code(code: str, replace_pattern: str) -> str:
 
 
 def find_code_and_splits(object_name: str, base_path: str, buf: dict = None):
-    """Find the code of an object, relative to `base_path`, and split it into blocks.
+    """Find the code of an object (specified by `object_name`) and split it into blocks.
 
     Args:
         object_name (`str`):
-            The name of the object, e.g. `transformers.models.bert.modeling_bert.BertAttention`.
+            The name of the object, e.g. `transformers.models.bert.modeling_bert.BertAttention`. This is relative to
+            `base_path`.
         base_path (`str`):
             The path to the base directory within which the search will be performed. It could be either
             `TRANSFORMERS_PATH` or `MODEL_TEST_PATH`.
