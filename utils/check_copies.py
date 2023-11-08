@@ -129,13 +129,13 @@ transformers_module = direct_transformers_import(TRANSFORMERS_PATH)
 
 
 def _is_definition_header_ending_line(line: str) -> bool:
-    # Helper function. Returns `True` if `line` is the end parenthesis of a function definition
+    # Helper function. Returns `True` if `line` is the end parenthesis of a class/function definition
     return re.search(r"^\s*\)(\s*->.*:|:)\s*$", line) is not None
 
 
 def _should_continue(line: str, indent: str) -> bool:
     # Helper function. Returns `True` if `line` is empty, starts with the `indent` or is the end parenthesis of a
-    # function definition
+    # class/function definition
     return line.startswith(indent) or len(line.strip()) == 0 or _is_definition_header_ending_line(line)
 
 
@@ -641,6 +641,8 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
             name_mappings_2[orig_name]: observed_code_blocks[name_mappings_2[orig_name]]
             for orig_name in name_mappings_2
         }
+
+        breakpoint()
 
         # ignore the blocks specified to be ignored
         # this is the version used to check if there is a mismatch
