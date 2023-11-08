@@ -339,7 +339,8 @@ class CopyCheckTester(unittest.TestCase):
                 file_to_check = os.path.join(tmp_folder, *path_to_check)
 
                 diffs = is_copy_consistent(file_to_check)
-                # line 12: `def only_in_roberta_not_ignored(self, c):` in `MOCK_DUMMY_ROBERTA_CODE_NOT_MATCH`
+                # line 16: `def only_in_roberta_not_ignored(self, c):` in `MOCK_DUMMY_ROBERTA_CODE_NOT_MATCH`.
+                # (which has a leading `\n`.)
                 self.assertEqual(
                     diffs, [["models.dummy_bert_not_match.modeling_dummy_bert_not_match.BertDummyModel", 16]]
                 )
