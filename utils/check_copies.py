@@ -187,8 +187,8 @@ def split_code_into_blocks(
         indent (`int`):
             The indent of the class/func body.
         backtrace (`bool`, *optional*, defaults to `False`):
-            Whether or not to include the lines before the class/func header (e.g. comments, decorators, etc.) until an
-            empty line is encountered.
+            Whether or not to include the lines before the inner class/func block's header (e.g. comments, decorators,
+            etc.) until an empty line is encountered.
 
     Returns:
         `List[Tuple[str, int, int]]`: A list of elements with the form `(block_name, start_index, end_index)`.
