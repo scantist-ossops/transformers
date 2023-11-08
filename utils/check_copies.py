@@ -201,6 +201,7 @@ def split_code_into_blocks(
     indent_str = " " * indent
     block_without_name_idx = 0
 
+    # Find the lines for the defintion header
     index = start_index
     if "(" in lines[start_index] and "):" not in lines[start_index] in lines[start_index]:
         while index < end_index:
@@ -221,8 +222,8 @@ def split_code_into_blocks(
 
             block_end_index = find_block_end(lines, index, indent + 4)
 
-            # backtrace to include the lines before the class/func header (e.g. comments, decorators, etc) until an
-            # empty line is encountered.
+            # backtrace to include the lines before the found block's definition header (e.g. comments, decorators,
+            # etc.) until an empty line is encountered.
             block_start_index = index
             if index > prev_block_end_index and backtrace:
                 idx = index - 1
@@ -237,13 +238,11 @@ def split_code_into_blocks(
                 if idx < index:
                     block_start_index = idx
 
-            # between the current found blocks and the empty region before it
-            # (we assume the code is well-formatted so there is always at least one empty line before the blocks)
+            # between the current found block and the previous found block
             if block_start_index > prev_block_end_index:
-                # by default, we have a region of empty lines, so we give them dummy names
+                # give it a dummy name
                 prev_block_name = f"_block_without_name_{block_without_name_idx}"
-
-                # Add the previous found block (or the previous region outside any block)
+                # Add it as a block
                 splits.append((prev_block_name, prev_block_end_index, block_start_index))
                 if prev_block_name.startswith("_block_without_name_"):
                     block_without_name_idx += 1
@@ -346,16 +345,16 @@ def find_code_in_transformers(
             line_index += 1
         # find the target specified in the current level in `parts` -> increase `indent` so we can search the next
         indent += "    "
-        # the index of the first line in the (currently found) block
+        # the index of the first line in the (currently found) block *body*
         line_index += 1
 
     if line_index >= len(lines):
         raise ValueError(f" {object_name} does not match any function or class in {module}.")
 
-    # `indent` is already one level deeper than the (found) class/func block's declaration
+    # `indent` is already one level deeper than the (found) class/func block's definition header
 
     # We found the beginning of the class / func, now let's find the end (when the indent diminishes).
-    # `start_index` is the index of the class/func block's declaration
+    # `start_index` is the index of the class/func block's definition header
     start_index = line_index - 1
     end_index = find_block_end(lines, start_index, len(indent))
 
@@ -421,8 +420,8 @@ def find_code_and_splits(object_name: str, base_path: str, buf: dict = None):
         indent = get_indent(code)
 
         # Split the code into blocks
-        # `indent` is the indent of the class/def declaration, but `code_splits` expect the indent level of the
-        # class/def body.
+        # `indent` is the indent of the class/func definition header, but `code_splits` expects the indent level of the
+        # block body.
         code_splits = split_code_into_blocks(
             lines, target_start_index, target_end_index, len(indent) + 4, backtrace=True
         )
@@ -547,6 +546,7 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
         # There is some copied code here, let's retrieve the original.
         indent, object_name, replace_pattern = search.groups()
 
+        # Find the file lines, the object's code, and its blocks
         target_lines, theoretical_code, theoretical_code_splits = find_code_and_splits(object_name, base_path, buf=buf)
 
         # code replaced by the patterns
@@ -559,14 +559,16 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
 
         theoretical_indent = get_indent(theoretical_code)
 
-        # `start_index` is the index of the first line after `# Copied ...` (the func/class declaration)
-        # (`indent != theoretical_indent` doesn't seem to occur so far, not sure what's the case for.)
+        # `start_index` is the index of the first line (the definition header) after `# Copied from`.
+        # (`indent != theoretical_indent` doesn't seem to occur so far, not sure what this case is for.)
         start_index = line_index + 1 if indent == theoretical_indent else line_index
+        # enter the block body
         line_index = start_index + 1
 
         subcode = "\n".join(theoretical_code.split("\n")[1:])
         indent = get_indent(subcode)
         # Loop to check the observed code, stop when indentation diminishes or if we see a End copy comment.
+        # We can't call `find_block_end` directly as there is sth. special `# End copy"` here.
         should_continue = True
         while line_index < len(lines) and should_continue:
             line_index += 1
@@ -584,7 +586,7 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
         # Split the observed code into blocks
         observed_code_splits = split_code_into_blocks(lines, start_index, line_index, len(indent), backtrace=True)
 
-        # observed code
+        # observed code in a structured way (a dict mapping block names to blocks' code)
         observed_code_blocks = OrderedDict()
         for name, start, end in observed_code_splits:
             code = "".join(lines[start:end])
@@ -601,7 +603,7 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
         #     2. if it's also in the theoretical code () --> put its content (body) to the corresponding block under the
         #        same name in the theoretical code.
         #   In both cases, we change the name to have a prefix `_ignored_` so we know if we can discard them during the
-        #   comparsion.
+        #   comparison.
         ignored_existing_block_index = 0
         ignored_new_block_index = 0
         for name in list(observed_code_blocks.keys()):
@@ -632,7 +634,7 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
         # Respect the original block order:
         #   1. in `theoretical_code_blocks`: the new blocks will follow the existing ones
         #   2. in `observed_code_blocks`: the original order are kept with names modified potentially. This is necessary
-        #      to compute the correct `diff_index` if required.
+        #      to compute the correct `diff_index` if `overwrite=True` and there is a diff.
         theoretical_code_blocks = {
             name_mappings_1[orig_name]: theoretical_code_blocks[name_mappings_1[orig_name]]
             for orig_name in name_mappings_1
@@ -642,10 +644,7 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
             for orig_name in name_mappings_2
         }
 
-        breakpoint()
-
-        # ignore the blocks specified to be ignored
-        # this is the version used to check if there is a mismatch
+        # Ignore the blocks specified to be ignored. This is the version used to check if there is a mismatch
         # (don't remove "_empty_block_" otherwise `blackify` later will be slower -> deal with them after `blackify`)
         theoretical_code_blocks_clean = {
             k: v
@@ -654,16 +653,15 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
         }
         theoretical_code = "".join(list(theoretical_code_blocks_clean.values()))
 
-        # blackify before compare
+        # blackify `theoretical_code` before compare (this is needed only when `replace_pattern` is not empty)
         if replace_pattern:
             theoretical_code = blackify(theoretical_code)
-
-        # Remove `\n\n` before compare
+        # Remove `\n\n` in `theoretical_code` before compare (so no empty line)
         while "\n\n" in theoretical_code:
             theoretical_code = theoretical_code.replace("\n\n", "\n")
 
-        # Keep track the line index between the original/processed `observed_code` so we can have the correct
-        # `diff_index`.
+        # Compute `observed_code` where we don't include any empty line + keep track the line index between the
+        # original/processed `observed_code` so we can have the correct `diff_index`.
         idx_to_orig_idx_mapping_for_observed_code_lines = {}
         idx = -1
         orig_idx = -1
@@ -681,7 +679,7 @@ def is_copy_consistent(filename: str, overwrite: bool = False, buf: dict = None)
         # Test for a diff and act accordingly.
         diff_index = check_codes_match(observed_code, theoretical_code)
         if diff_index is not None:
-            # switch to the index in the original `observed_code` (before removing empty lines)
+            # switch to the index in the original `observed_code` (i.e. before removing empty lines)
             diff_index = idx_to_orig_idx_mapping_for_observed_code_lines[diff_index]
             diffs.append([object_name, diff_index + start_index + 1])
             if overwrite:
